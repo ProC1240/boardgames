@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🐭 Cheese Thief — Game Master</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap');
+
+  :root {
+    --cheese: #FFD700;
+    --cheese-dark: #E6A800;
+    --cheese-light: #FFF4B3;
+    --rat-brown: #8B4513;
+    --rat-dark: #5C2E0A;
+    --bg: #1a0a00;
+    --card: #2d1505;
+    --card2: #3d1f08;
+    --text: #FFF8E7;
+    --accent: #FF6B35;
+    --green: #4CAF50;
+    --red: #e74c3c;
+    --muted: #a07850;
+    --shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Nunito', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+    background-image:
+      radial-gradient(ellipse at 20% 20%, rgba(139,69,19,0.15) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 80%, rgba(255,215,0,0.08) 0%, transparent 60%);
+  }
+
+  /* ===== PARTICLES ===== */
+  .particle-layer { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+  .star {
+    position: absolute; width: 4px; height: 4px; border-radius: 50%;
+    background: var(--cheese); opacity: 0;
+    animation: twinkle var(--d, 4s) var(--delay, 0s) infinite;
+  }
+  @keyframes twinkle { 0%,100%{opacity:0;transform:scale(0.5);} 50%{opacity:0.6;transform:scale(1.2);} }
+
+  /* ===== HEADER ===== */
+  header {
+    position: relative; z-index: 10;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 24px;
+    background: rgba(45,21,5,0.9);
+    border-bottom: 2px solid rgba(255,215,0,0.2);
+    backdrop-filter: blur(12px);
+  }
+  .logo {
+    font-family: 'Fredoka One', cursive;
+    font-size: 1.6rem; color: var(--cheese);
+    text-shadow: 0 0 20px rgba(255,215,0,0.5);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .logo span { font-size: 1.8rem; }
+  .user-pill {
+    background: var(--card2);
+    border: 1px solid rgba(255,215,0,0.3);
+    border-radius: 999px; padding: 6px 16px;
+    font-size: 0.85rem; font-weight: 700; color: var(--cheese);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .role-badge {
+    background: var(--cheese); color: var(--bg);
+    border-radius: 999px; padding: 2px 8px;
+    font-size: 0.7rem; font-weight: 800; text-transform: uppercase;
+  }
+  .btn-logout {
+    background: none; border: 1px solid rgba(255,107,53,0.5);
+    color: var(--accent); border-radius: 8px;
+    padding: 6px 12px; cursor: pointer; font-size: 0.8rem;
+    font-family: 'Nunito', sans-serif; transition: all 0.2s;
+  }
+  .btn-logout:hover { background: var(--accent); color: white; }
+
+  /* ===== PAGES ===== */
+  .page { display: none; position: relative; z-index: 5; }
+  .page.active { display: block; animation: page-in 0.3s ease; }
+  @keyframes page-in { from{opacity:0;transform:translateY(8px);} to{opacity:1;transform:none;} }
+
+  /* ===== HOME PAGE ===== */
+  #page-home {
+    padding: 40px 24px;
+    max-width: 800px;
+    margin: 0 auto;
+  }
+  .home-hero { text-align: center; margin-bottom: 40px; }
+  .home-hero .rat-emoji { font-size: 5rem; display: block; animation: float 3s ease-in-out infinite; }
+  @keyframes float { 0%,100%{transform:translateY(0) rotate(-5deg);} 50%{transform:translateY(-12px) rotate(5deg);} }
+  .home-hero h1 {
+    font-family: 'Fredoka One', cursive;
+    font-size: 2.5rem; color: var(--cheese);
+    text-shadow: 0 0 30px rgba(255,215,0,0.3);
+  }
+  .home-hero p { color: var(--muted); margin-top: 8px; font-size: 1.05rem; }
+
+  .btn-start {
+    background: linear-gradient(135deg, var(--cheese), var(--cheese-dark));
+    color: var(--bg); border: none; border-radius: 20px;
+    padding: 20px 48px; font-family: 'Fredoka One', cursive;
+    font-size: 1.6rem; cursor: pointer; transition: all 0.3s;
+    box-shadow: 0 8px 32px rgba(255,215,0,0.4);
+    display: block; margin: 0 auto 40px;
+    position: relative; overflow: hidden;
+    animation: pulse-glow 2.5s ease-in-out infinite;
+  }
+  .btn-start::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.2), transparent);
+    border-radius: 20px;
+  }
+  .btn-start:hover { transform: scale(1.05); box-shadow: 0 12px 40px rgba(255,215,0,0.5); }
+  @keyframes pulse-glow {
+    0%,100%{box-shadow: 0 8px 32px rgba(255,215,0,0.4);}
+    50%{box-shadow: 0 8px 40px rgba(255,215,0,0.7), 0 0 60px rgba(255,215,0,0.2);}
+  }
+
+  .info-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px; margin-bottom: 32px;
+  }
+  .info-card {
+    background: var(--card); border: 1px solid rgba(255,215,0,0.15);
+    border-radius: 16px; padding: 20px; text-align: center; transition: transform 0.2s;
+  }
+  .info-card:hover { transform: translateY(-3px); }
+  .info-card .icon { font-size: 2.5rem; display: block; margin-bottom: 8px; }
+  .info-card h3 { font-family: 'Fredoka One', cursive; color: var(--cheese); font-size: 1rem; margin-bottom: 4px; }
+  .info-card p { color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
+
+  .admin-card {
+    background: var(--card); border: 1px solid rgba(255,107,53,0.3);
+    border-radius: 16px; padding: 20px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .admin-card:hover { border-color: var(--accent); transform: translateX(4px); }
+  .admin-card .left { display: flex; align-items: center; gap: 12px; }
+  .admin-card .icon { font-size: 2rem; }
+  .admin-card h3 { font-family: 'Fredoka One', cursive; color: var(--accent); font-size: 1rem; }
+  .admin-card p { color: var(--muted); font-size: 0.8rem; }
+  .arrow { color: var(--accent); font-size: 1.4rem; }
+
+  /* ===== GAME PAGE ===== */
+  #page-game { padding: 24px; max-width: 700px; margin: 0 auto; }
+  .phase-header { text-align: center; margin-bottom: 24px; }
+  .phase-label {
+    font-family: 'Fredoka One', cursive; font-size: 0.85rem;
+    text-transform: uppercase; letter-spacing: 2px;
+    color: var(--muted); margin-bottom: 4px;
+  }
+  .phase-title { font-family: 'Fredoka One', cursive; font-size: 2rem; color: var(--cheese); }
+
+  .progress-wrap {
+    background: var(--card); border-radius: 999px; height: 8px;
+    margin-bottom: 24px; overflow: hidden; border: 1px solid rgba(255,215,0,0.15);
+  }
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--cheese-dark), var(--cheese));
+    border-radius: 999px; transition: width 0.5s ease;
+    box-shadow: 0 0 12px rgba(255,215,0,0.4);
+  }
+
+  .speech-card {
+    background: var(--card); border: 2px solid rgba(255,215,0,0.3);
+    border-radius: 20px; padding: 28px 24px; text-align: center;
+    margin-bottom: 20px; position: relative;
+    box-shadow: var(--shadow), 0 0 40px rgba(255,215,0,0.05);
+  }
+  .speech-card .rat-icon { font-size: 3rem; margin-bottom: 8px; display: block; }
+  .speech-text {
+    font-family: 'Fredoka One', cursive; font-size: 1.6rem;
+    color: var(--text); line-height: 1.3; min-height: 60px; transition: opacity 0.3s;
+  }
+  .speech-text.fade { opacity: 0; }
+
+  .timer-wrap { display: flex; justify-content: center; margin-bottom: 20px; }
+  .timer-ring { position: relative; width: 100px; height: 100px; }
+  .timer-ring svg { transform: rotate(-90deg); }
+  .timer-ring .bg { stroke: var(--card2); stroke-width: 8; fill: none; }
+  .timer-ring .fg {
+    stroke: var(--cheese); stroke-width: 8; fill: none;
+    stroke-linecap: round; stroke-dasharray: 251; stroke-dashoffset: 0;
+    transition: stroke-dashoffset 1s linear, stroke 0.3s;
+    filter: drop-shadow(0 0 6px rgba(255,215,0,0.5));
+  }
+  .timer-num {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Fredoka One', cursive; font-size: 1.8rem; color: var(--cheese);
+  }
+
+  .game-controls { display: flex; gap: 12px; justify-content: center; }
+  .btn-stop {
+    background: none; border: 2px solid var(--muted); color: var(--muted);
+    border-radius: 12px; padding: 12px 28px;
+    font-family: 'Fredoka One', cursive; font-size: 1rem;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .btn-stop:hover { border-color: var(--cheese); color: var(--cheese); }
+  .btn-reset {
+    background: none; border: 2px solid rgba(231,76,60,0.4); color: var(--red);
+    border-radius: 12px; padding: 12px 28px;
+    font-family: 'Fredoka One', cursive; font-size: 1rem;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .btn-reset:hover { background: rgba(231,76,60,0.15); }
+
+  .waiting-dots span {
+    display: inline-block; animation: dot 1.2s infinite;
+    color: var(--muted); font-size: 1.5rem;
+  }
+  .waiting-dots span:nth-child(2){animation-delay:0.2s;}
+  .waiting-dots span:nth-child(3){animation-delay:0.4s;}
+  @keyframes dot{ 0%,80%,100%{opacity:0.2;}40%{opacity:1;} }
+
+  /* ===== ADMIN PAGE ===== */
+  #page-admin { padding: 24px; max-width: 900px; margin: 0 auto; }
+  .admin-header { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+  .admin-header .back-btn {
+    background: var(--card); border: 1px solid rgba(255,215,0,0.2);
+    border-radius: 10px; padding: 8px 14px; cursor: pointer;
+    color: var(--cheese); font-size: 1rem; transition: all 0.2s;
+    font-family: 'Nunito', sans-serif; font-weight: 700;
+  }
+  .admin-header .back-btn:hover { background: var(--card2); }
+  .admin-header h2 { font-family: 'Fredoka One', cursive; font-size: 1.6rem; color: var(--accent); }
+
+  .voices-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+  .voice-card {
+    background: var(--card); border: 1px solid rgba(255,215,0,0.15);
+    border-radius: 16px; padding: 16px; transition: all 0.2s;
+  }
+  .voice-card:hover { border-color: rgba(255,215,0,0.3); }
+  .voice-card .vc-label {
+    font-size: 0.7rem; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--muted); margin-bottom: 6px;
+  }
+  .voice-card .vc-script {
+    color: rgba(255,248,231,0.35); font-size: 0.9rem;
+    line-height: 1.5; margin-bottom: 12px; font-style: italic;
+  }
+  .voice-card .vc-duration { font-size: 0.75rem; color: var(--muted); margin-bottom: 8px; }
+  .vc-status {
+    display: inline-block; border-radius: 999px; padding: 2px 10px;
+    font-size: 0.7rem; font-weight: 800; text-transform: uppercase; margin-bottom: 10px;
+  }
+  .vc-status.default { background: rgba(160,120,80,0.2); color: var(--muted); }
+  .vc-status.custom { background: rgba(76,175,80,0.2); color: var(--green); }
+  .vc-status.recording { background: rgba(231,76,60,0.2); color: var(--red); animation: pulse-status 1s infinite; }
+  @keyframes pulse-status { 0%,100%{opacity:1;} 50%{opacity:0.5;} }
+
+  .vc-controls { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn-record {
+    background: linear-gradient(135deg, var(--red), #c0392b);
+    color: white; border: none; border-radius: 8px; padding: 8px 14px;
+    font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 0.8rem;
+    cursor: pointer; transition: all 0.2s;
+    display: flex; align-items: center; gap: 5px;
+  }
+  .btn-record:hover { transform: scale(1.03); }
+  .btn-record.recording { background: linear-gradient(135deg, #e74c3c, #922b21); }
+  .btn-play-vc {
+    background: none; border: 1px solid rgba(255,215,0,0.3); color: var(--cheese);
+    border-radius: 8px; padding: 8px 14px;
+    font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 0.8rem;
+    cursor: pointer; transition: all 0.2s;
+    display: flex; align-items: center; gap: 5px;
+  }
+  .btn-play-vc:hover { background: rgba(255,215,0,0.1); }
+  .btn-play-vc:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  /* ===== MODAL ===== */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; z-index: 100;
+    background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal-box {
+    background: var(--card); border: 1px solid rgba(255,215,0,0.3);
+    border-radius: 20px; padding: 32px; max-width: 360px; width: 90%;
+    text-align: center;
+    animation: pop-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes pop-in { from{transform:scale(0.8);opacity:0;} to{transform:scale(1);opacity:1;} }
+  .modal-box .icon { font-size: 3rem; margin-bottom: 12px; display: block; }
+  .modal-box h3 { font-family: 'Fredoka One', cursive; font-size: 1.4rem; color: var(--cheese); margin-bottom: 8px; }
+  .modal-box p { color: var(--muted); font-size: 0.9rem; margin-bottom: 24px; }
+  .modal-btns { display: flex; gap: 12px; justify-content: center; }
+  .btn-yes {
+    background: var(--red); color: white; border: none; border-radius: 10px;
+    padding: 10px 24px; font-family: 'Fredoka One', cursive; font-size: 1rem;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .btn-yes:hover { background: #c0392b; }
+  .btn-no {
+    background: var(--card2); color: var(--text);
+    border: 1px solid rgba(255,215,0,0.2); border-radius: 10px;
+    padding: 10px 24px; font-family: 'Fredoka One', cursive; font-size: 1rem;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .btn-no:hover { background: var(--card); }
+
+  /* Stickers */
+  .sticker {
+    position: fixed; pointer-events: none; z-index: 1; opacity: 0.15; font-size: 4rem;
+    animation: drift var(--drift-d, 20s) var(--drift-delay, 0s) ease-in-out infinite;
+  }
+  @keyframes drift {
+    0%,100%{transform:translateY(0) rotate(0deg);}
+    50%{transform:translateY(-30px) rotate(10deg);}
+  }
+
+  .cheese-bg {
+    position: fixed; bottom: 0; right: 0; width: 300px; height: 300px;
+    opacity: 0.04; pointer-events: none; z-index: 0;
+    background:
+      radial-gradient(circle 20px at 30% 40%, transparent 18px, #FFD700 18px, #FFD700 22px, transparent 22px),
+      radial-gradient(circle 14px at 65% 25%, transparent 12px, #FFD700 12px, #FFD700 16px, transparent 16px),
+      radial-gradient(circle 18px at 75% 70%, transparent 16px, #FFD700 16px, #FFD700 20px, transparent 20px),
+      #FFD700;
+    border-radius: 50%;
+  }
+
+  .flash { animation: flash-border 0.5s; }
+  @keyframes flash-border {
+    0%,100%{border-color:rgba(255,215,0,0.3);}
+    50%{border-color:var(--cheese); box-shadow: 0 0 30px rgba(255,215,0,0.3);}
+  }
+</style>
+</head>
+<body>
+
+<div class="particle-layer" id="particles"></div>
+<div class="cheese-bg"></div>
+<div class="sticker" style="top:15%;left:5%;--drift-d:18s;--drift-delay:0s;">🐭</div>
+<div class="sticker" style="top:60%;left:92%;--drift-d:22s;--drift-delay:3s;">🧀</div>
+<div class="sticker" style="top:80%;left:8%;--drift-d:25s;--drift-delay:6s;">🐭</div>
+<div class="sticker" style="top:30%;left:88%;--drift-d:20s;--drift-delay:1.5s;">🧀</div>
+
+<header>
+  <div class="logo"><span>🐭</span> Cheese Thief</div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <div class="user-pill">
+      👤 <span id="header-username">-</span>
+      <span class="role-badge" id="header-role">-</span>
+    </div>
+    <button class="btn-logout" onclick="logout()">ออกจากระบบ</button>
+  </div>
+</header>
+
+<!-- ========== HOME PAGE ========== -->
+<div id="page-home" class="page active">
+  <div class="home-hero">
+    <span class="rat-emoji">🧀</span>
+    <h1>พร้อมล่าเจ้าหนูชีทแล้ว!</h1>
+    <p>หลังแจกไพ่เสร็จแล้ว กด Start เพื่อเริ่มเกม</p>
+  </div>
+
+  <button class="btn-start" onclick="startGame()">🐭 Start Game!</button>
+
+  <div class="info-grid">
+    <div class="info-card">
+      <span class="icon">🌙</span>
+      <h3>เที่ยงคืน</h3>
+      <p>หนูทุกตัวหลับตา แล้วตื่นทีละช่วงเวลา</p>
+    </div>
+    <div class="info-card">
+      <span class="icon">⏰</span>
+      <h3>ตี 1 – 6 โมง</h3>
+      <p>แต่ละช่วงเวลาใช้ 10 วินาที</p>
+    </div>
+    <div class="info-card">
+      <span class="icon">🐭</span>
+      <h3>หนูชีท</h3>
+      <p>เลือกลูกสมุนลับๆ ก่อนเกมเริ่ม</p>
+    </div>
+  </div>
+
+  <div id="admin-card-wrap" style="display:none;">
+    <div class="admin-card" onclick="goAdmin()">
+      <div class="left">
+        <span class="icon">🎙️</span>
+        <div>
+          <h3>จัดการเสียงพากย์</h3>
+          <p>อัดเสียงพากย์แทน Game Master</p>
+        </div>
+      </div>
+      <span class="arrow">›</span>
+    </div>
+  </div>
+</div>
+
+<!-- ========== GAME PAGE ========== -->
+<div id="page-game" class="page">
+  <div class="phase-header">
+    <div class="phase-label" id="phase-label">กำลังเริ่มต้น...</div>
+    <div class="phase-title" id="phase-title">🐭 Cheese Thief</div>
+  </div>
+
+  <div class="progress-wrap">
+    <div class="progress-bar" id="prog-bar" style="width:0%"></div>
+  </div>
+
+  <div class="speech-card" id="speech-card">
+    <span class="rat-icon">🐭</span>
+    <div class="speech-text" id="speech-text">
+      <div class="waiting-dots"><span>●</span><span>●</span><span>●</span></div>
+    </div>
+  </div>
+
+  <div class="timer-wrap" id="timer-wrap" style="visibility:hidden;">
+    <div class="timer-ring">
+      <svg viewBox="0 0 90 90" width="100" height="100">
+        <circle class="bg" cx="45" cy="45" r="40"/>
+        <circle class="fg" id="timer-circle" cx="45" cy="45" r="40"/>
+      </svg>
+      <div class="timer-num" id="timer-num">10</div>
+    </div>
+  </div>
+
+  <div class="game-controls">
+    <button class="btn-stop" id="btn-pause" onclick="togglePause()">⏸ หยุดชั่วคราว</button>
+    <button class="btn-reset" onclick="confirmReset()">↺ Reset</button>
+  </div>
+</div>
+
+<!-- ========== ADMIN PAGE ========== -->
+<div id="page-admin" class="page">
+  <div class="admin-header">
+    <button class="back-btn" onclick="goHome()">← กลับ</button>
+    <h2>🎙️ จัดการเสียงพากย์</h2>
+  </div>
+  <div class="voices-grid" id="voices-grid"></div>
+</div>
+
+<!-- ========== MODAL ========== -->
+<div class="modal-overlay" id="modal">
+  <div class="modal-box">
+    <span class="icon">⚠️</span>
+    <h3>ยืนยันการรีเซ็ต</h3>
+    <p>คุณต้องการรีเซ็ตเกมและกลับหน้าหลักใช่ไหม?</p>
+    <div class="modal-btns">
+      <button class="btn-yes" onclick="doReset()">✓ Yes</button>
+      <button class="btn-no" onclick="closeModal()">✗ No</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==================== AUTH CHECK ====================
+let currentUser = null;
+
+(function() {
+  const saved = sessionStorage.getItem('ct_user');
+  if (!saved) {
+    window.location.href = 'login.html';
+    return;
+  }
+  currentUser = JSON.parse(saved);
+  document.getElementById('header-username').textContent = currentUser.username;
+  document.getElementById('header-role').textContent = currentUser.role;
+  if (currentUser.role === 'admin') {
+    document.getElementById('admin-card-wrap').style.display = '';
+  }
+})();
+
+function logout() {
+  stopGame();
+  sessionStorage.removeItem('ct_user');
+  document.body.style.transition = 'opacity 0.3s';
+  document.body.style.opacity = '0';
+  setTimeout(() => { window.location.href = 'login.html'; }, 300);
+}
+
+// ==================== PARTICLES ====================
+(function() {
+  const layer = document.getElementById('particles');
+  for (let i = 0; i < 30; i++) {
+    const s = document.createElement('div');
+    s.className = 'star';
+    s.style.cssText = `left:${Math.random()*100}%;top:${Math.random()*100}%;--d:${3+Math.random()*5}s;--delay:${Math.random()*4}s;`;
+    layer.appendChild(s);
+  }
+})();
+
+// ==================== STEPS ====================
+let gameEngine = null;
+let voiceData = {};
+
+function buildSteps() {
+  const steps = [];
+  steps.push({ key: 'midnight', label: 'เที่ยงคืน', script: 'เที่ยงคืน\nหนูทุกตัวหลับตา', maxDuration: 3000, waitBefore: 0 });
+  const times = [
+    {label:'ตี 1', keyOpen:'open_1', keyClose:'close_1'},
+    {label:'ตี 2', keyOpen:'open_2', keyClose:'close_2'},
+    {label:'ตี 3', keyOpen:'open_3', keyClose:'close_3'},
+    {label:'ตี 4', keyOpen:'open_4', keyClose:'close_4'},
+    {label:'ตี 5', keyOpen:'open_5', keyClose:'close_5'},
+    {label:'6 โมง', keyOpen:'open_6', keyClose:'close_6'},
+  ];
+  times.forEach((t) => {
+    steps.push({ key: t.keyOpen, label: `${t.label} – ลืมตา`, script: `หนูที่ตื่น${t.label}ลืมตา`, maxDuration: 10000, waitBefore: 3000 });
+    steps.push({ key: t.keyClose, label: `${t.label} – หลับตา`, script: `หนูที่ตื่น${t.label}หลับตา`, maxDuration: 3000, waitBefore: 10000 });
+  });
+  steps.push({ key: 'hands_out', label: 'ยื่นมือออกมา', script: 'ให้หนูทุกตัวยื่นมือออกมา', maxDuration: 5000, waitBefore: 3000 });
+  steps.push({ key: 'cheat_pick', label: 'หนูชีทเลือกสมุน', script: 'ให้หนูชีทเลือกลูกสมุน\nโดยการแตะมือ', maxDuration: 7000, waitBefore: 5000 });
+  steps.push({ key: 'cheat_sleep', label: 'หนูชีทหลับตา / สมุนลืมตา', script: 'หนูชีทหลับตา\nจากนั้นลูกสมุนลืมตา', maxDuration: 5000, waitBefore: 7000 });
+  steps.push({ key: 'minion_sleep', label: 'ลูกสมุนหลับตา', script: 'ลูกสมุนหลับตา', maxDuration: 3000, waitBefore: 5000 });
+  steps.push({ key: 'wake_all', label: 'หนูทุกตัวลืมตา', script: 'หนูทุกตัวลืมตา', maxDuration: 3000, waitBefore: 3000 });
+  return steps;
+}
+
+const STEPS = buildSteps();
+const TOTAL_STEPS = STEPS.length;
+
+// ==================== PAGE NAV ====================
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+}
+
+// ==================== GAME ENGINE ====================
+function startGame() {
+  showPage('game');
+  gameEngine = new GameEngine(STEPS);
+  gameEngine.start();
+}
+
+function stopGame() {
+  if (gameEngine) { gameEngine.destroy(); gameEngine = null; }
+}
+
+class GameEngine {
+  constructor(steps) {
+    this.steps = steps; this.idx = 0;
+    this.paused = false; this.destroyed = false;
+    this._timers = []; this._resolve = null;
+  }
+
+  start() { this._run(); }
+
+  async _run() {
+    for (this.idx = 0; this.idx < this.steps.length; this.idx++) {
+      if (this.destroyed) return;
+      await this._waitPause();
+      if (this.destroyed) return;
+      const step = this.steps[this.idx];
+      this._updateProgress();
+      if (step.waitBefore > 0) {
+        setSpeechWaiting();
+        await this._sleep(step.waitBefore);
+        if (this.destroyed) return;
+        await this._waitPause();
+      }
+      await this._playStep(step);
+      if (this.destroyed) return;
+    }
+    this._onComplete();
+  }
+
+  async _playStep(step) {
+    const vc = voiceData[step.key];
+    setSpeechText(step.script);
+    document.getElementById('phase-label').textContent = `ขั้นตอน ${this.idx + 1} / ${TOTAL_STEPS}`;
+    document.getElementById('phase-title').textContent = step.label;
+    document.getElementById('speech-card').classList.add('flash');
+    setTimeout(() => document.getElementById('speech-card').classList.remove('flash'), 600);
+
+    if (vc && vc.blob) {
+      const played = await this._playAudioBlob(vc.blob, step.maxDuration);
+      if (this.destroyed) return;
+      const remaining = step.maxDuration - played;
+      if (remaining > 0) { showTimer(Math.ceil(remaining/1000), remaining/1000); await this._sleepWithTimer(remaining); }
+    } else {
+      const spoken = await this._speak(step.script);
+      if (this.destroyed) return;
+      const remaining = step.maxDuration - spoken;
+      if (remaining > 300) { showTimer(Math.ceil(remaining/1000), remaining/1000); await this._sleepWithTimer(remaining); }
+    }
+    hideTimer();
+  }
+
+  async _speak(text) {
+    const t0 = Date.now();
+    return new Promise((res) => {
+      if (!window.speechSynthesis) { res(0); return; }
+      window.speechSynthesis.cancel();
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = 'th-TH'; utter.rate = 0.85; utter.pitch = 1.0;
+      utter.onend = () => res(Date.now() - t0);
+      utter.onerror = () => res(Date.now() - t0);
+      this._currentUtter = utter;
+      window.speechSynthesis.speak(utter);
+    });
+  }
+
+  async _playAudioBlob(blob) {
+    const t0 = Date.now();
+    return new Promise((res) => {
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      this._currentAudio = audio;
+      audio.onended = () => { URL.revokeObjectURL(url); res(Date.now() - t0); };
+      audio.onerror = () => { URL.revokeObjectURL(url); res(Date.now() - t0); };
+      audio.play().catch(() => res(0));
+    });
+  }
+
+  async _sleep(ms) {
+    return new Promise((res) => { const tid = setTimeout(res, ms); this._timers.push(tid); });
+  }
+
+  async _sleepWithTimer(ms) {
+    const total = ms / 1000; const interval = 100; let elapsed = 0;
+    return new Promise((res) => {
+      const tick = setInterval(async () => {
+        if (this.destroyed) { clearInterval(tick); res(); return; }
+        await this._waitPause();
+        elapsed += interval;
+        const remaining = Math.max(0, total - elapsed/1000);
+        updateTimer(remaining, total);
+        if (elapsed >= ms) { clearInterval(tick); res(); }
+      }, interval);
+      this._intervalRef = tick;
+    });
+  }
+
+  async _waitPause() {
+    while (this.paused && !this.destroyed) { await new Promise(r => setTimeout(r, 100)); }
+  }
+
+  pause() {
+    this.paused = true;
+    if (this._currentAudio) this._currentAudio.pause();
+    if (window.speechSynthesis) window.speechSynthesis.pause();
+  }
+
+  resume() {
+    this.paused = false;
+    if (this._currentAudio) this._currentAudio.play().catch(()=>{});
+    if (window.speechSynthesis) window.speechSynthesis.resume();
+  }
+
+  destroy() {
+    this.destroyed = true; this.paused = false;
+    this._timers.forEach(clearTimeout);
+    if (this._intervalRef) clearInterval(this._intervalRef);
+    if (this._currentAudio) { this._currentAudio.pause(); this._currentAudio = null; }
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+  }
+
+  _updateProgress() {
+    document.getElementById('prog-bar').style.width = (this.idx / TOTAL_STEPS * 100) + '%';
+  }
+
+  _onComplete() {
+    document.getElementById('prog-bar').style.width = '100%';
+    setSpeechText('🎉 จบแล้ว!\nขอให้สนุก!');
+    hideTimer();
+    setTimeout(() => { stopGame(); goHome(); }, 2500);
+  }
+}
+
+// ==================== GAME UI ====================
+function setSpeechText(text) {
+  const el = document.getElementById('speech-text');
+  el.classList.add('fade');
+  setTimeout(() => { el.innerHTML = text.replace(/\n/g, '<br>'); el.classList.remove('fade'); }, 150);
+}
+function setSpeechWaiting() {
+  const el = document.getElementById('speech-text');
+  el.classList.add('fade');
+  setTimeout(() => { el.innerHTML = '<div class="waiting-dots"><span>●</span><span>●</span><span>●</span></div>'; el.classList.remove('fade'); }, 150);
+}
+function showTimer(n, total) {
+  document.getElementById('timer-wrap').style.visibility = 'visible';
+  document.getElementById('timer-num').textContent = n;
+  const circ = document.getElementById('timer-circle');
+  const pct = n / total;
+  circ.style.strokeDashoffset = 251 * (1 - pct);
+  circ.style.stroke = pct > 0.5 ? 'var(--cheese)' : pct > 0.25 ? 'var(--accent)' : 'var(--red)';
+}
+function updateTimer(remaining, total) {
+  document.getElementById('timer-num').textContent = Math.ceil(remaining);
+  const circ = document.getElementById('timer-circle');
+  const pct = remaining / total;
+  circ.style.strokeDashoffset = 251 * (1 - pct);
+  circ.style.stroke = pct > 0.5 ? 'var(--cheese)' : pct > 0.25 ? 'var(--accent)' : 'var(--red)';
+}
+function hideTimer() { document.getElementById('timer-wrap').style.visibility = 'hidden'; }
+
+let isPaused = false;
+function togglePause() {
+  if (!gameEngine) return;
+  isPaused = !isPaused;
+  const btn = document.getElementById('btn-pause');
+  if (isPaused) {
+    gameEngine.pause();
+    btn.textContent = '▶ Continue';
+    btn.style.borderColor = 'var(--cheese)'; btn.style.color = 'var(--cheese)';
+  } else {
+    gameEngine.resume();
+    btn.textContent = '⏸ หยุดชั่วคราว';
+    btn.style.borderColor = ''; btn.style.color = '';
+  }
+}
+
+function confirmReset() { document.getElementById('modal').classList.add('show'); }
+function closeModal() { document.getElementById('modal').classList.remove('show'); }
+function doReset() {
+  closeModal(); stopGame(); isPaused = false;
+  document.getElementById('btn-pause').textContent = '⏸ หยุดชั่วคราว';
+  goHome();
+}
+
+// ==================== NAV ====================
+function goHome() { stopGame(); showPage('home'); }
+function goAdmin() {
+  if (!currentUser || currentUser.role !== 'admin') return;
+  renderAdminPage(); showPage('admin');
+}
+
+// ==================== ADMIN VOICE ====================
+let mediaRecorder = null;
+let recordingChunks = [];
+let recordingKey = null;
+let recordingTimer = null;
+let recordingStart = 0;
+
+function renderAdminPage() {
+  const grid = document.getElementById('voices-grid');
+  grid.innerHTML = '';
+  STEPS.forEach(step => {
+    const vc = voiceData[step.key];
+    const hasCustom = !!(vc && vc.blob);
+    const card = document.createElement('div');
+    card.className = 'voice-card'; card.id = `vc-${step.key}`;
+    card.innerHTML = `
+      <div class="vc-label">${step.label}</div>
+      <div class="vc-script">"${step.script.replace(/\n/g,' ')}"</div>
+      <div class="vc-duration">ระยะเวลาสูงสุด: ${step.maxDuration/1000} วินาที</div>
+      <span class="vc-status ${hasCustom ? 'custom' : 'default'}">${hasCustom ? '🎙️ Custom' : '🔊 Default TTS'}</span>
+      <div class="vc-controls">
+        <button class="btn-record" id="rec-btn-${step.key}" onclick="toggleRecord('${step.key}')">⏺ อัดเสียง</button>
+        <button class="btn-play-vc" id="play-btn-${step.key}" onclick="playVoice('${step.key}')" ${!hasCustom?'disabled':''}>▶ ฟัง</button>
+      </div>`;
+    grid.appendChild(card);
+  });
+}
+
+async function toggleRecord(key) {
+  const btn = document.getElementById(`rec-btn-${key}`);
+  if (mediaRecorder && recordingKey === key && mediaRecorder.state === 'recording') {
+    mediaRecorder.stop(); return;
+  }
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.stop(); await new Promise(r => setTimeout(r, 200));
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    recordingKey = key; recordingChunks = []; recordingStart = Date.now();
+    const step = STEPS.find(s => s.key === key);
+    const maxMs = step ? step.maxDuration : 10000;
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordingChunks.push(e.data); };
+    mediaRecorder.onstop = () => {
+      stream.getTracks().forEach(t => t.stop());
+      const blob = new Blob(recordingChunks, { type: 'audio/webm' });
+      voiceData[key] = { blob, duration: Date.now() - recordingStart };
+      clearTimeout(recordingTimer);
+      btn.innerHTML = '⏺ อัดเสียง'; btn.classList.remove('recording');
+      document.querySelector(`#vc-${key} .vc-status`).className = 'vc-status custom';
+      document.querySelector(`#vc-${key} .vc-status`).textContent = '🎙️ Custom';
+      document.getElementById(`play-btn-${key}`).disabled = false;
+    };
+    mediaRecorder.start();
+    btn.innerHTML = '⏹ หยุดอัด'; btn.classList.add('recording');
+    document.querySelector(`#vc-${key} .vc-status`).className = 'vc-status recording';
+    document.querySelector(`#vc-${key} .vc-status`).textContent = '🔴 กำลังอัด...';
+    recordingTimer = setTimeout(() => {
+      if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
+    }, maxMs);
+  } catch (err) {
+    alert('ไม่สามารถเข้าถึงไมค์ได้: ' + err.message);
+  }
+}
+
+function playVoice(key) {
+  const vc = voiceData[key];
+  if (!vc || !vc.blob) return;
+  const url = URL.createObjectURL(vc.blob);
+  const audio = new Audio(url);
+  audio.play(); audio.onended = () => URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
