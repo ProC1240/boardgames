@@ -471,40 +471,41 @@ let currentUser = null;
   if (currentUser.role === 'admin') document.getElementById('admin-card-wrap').style.display = '';
 })();
 
-// ==================== INDEXEDDB ====================
-const DB_NAME = 'cheesethief_voices';
-const DB_STORE = 'recordings';
-let db = null;
+// ==================== SUPABASE STORAGE ====================
+const SUPA_URL = 'https://oktbtiivcvowdngxmjmz.supabase.co';
+const SUPA_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9rdGJ0aWl2Y3Zvd2RuZ3htam16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0NTUwOTgsImV4cCI6MjA5MTAzMTA5OH0.3RBiNCR6UkRTVKJ-SYCgYeVnBBJC2AYJs0_21pDyzjg';
+const SUPA_SERVICE = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9rdGJ0aWl2Y3Zvd2RuZ3htam16Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTQ1NTA5OCwiZXhwIjoyMDkxMDMxMDk4fQ.Ud1gU4ORiU1m8u4cDSaj5ldC562s6Z9hdB0GyvqTmNc';
+const BUCKET = 'voices';
 
-function openDB() {
-  return new Promise((res, rej) => {
-    const req = indexedDB.open(DB_NAME, 1);
-    req.onupgradeneeded = e => e.target.result.createObjectStore(DB_STORE);
-    req.onsuccess = e => { db = e.target.result; res(db); };
-    req.onerror = () => rej(req.error);
+async function supaUpload(key, blob) {
+  const res = await fetch(`${SUPA_URL}/storage/v1/object/${BUCKET}/${key}.webm`, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPA_SERVICE,
+      'Authorization': `Bearer ${SUPA_SERVICE}`,
+      'x-upsert': 'true',
+      'Content-Type': 'audio/webm'
+    },
+    body: blob
   });
+  if (!res.ok) console.error('Upload failed:', await res.text());
+  return res.ok;
 }
 
-function dbSave(key, blob) {
-  if (!db) return;
-  const tx = db.transaction(DB_STORE, 'readwrite');
-  tx.objectStore(DB_STORE).put(blob, key);
-}
-
-function dbLoad(key) {
-  return new Promise((res) => {
-    if (!db) { res(null); return; }
-    const req = db.transaction(DB_STORE).objectStore(DB_STORE).get(key);
-    req.onsuccess = () => res(req.result || null);
-    req.onerror = () => res(null);
-  });
+async function supaGetBlob(key) {
+  try {
+    const res = await fetch(`${SUPA_URL}/storage/v1/object/public/${BUCKET}/${key}.webm`, {
+      headers: { 'apikey': SUPA_ANON }
+    });
+    if (!res.ok) return null;
+    return await res.blob();
+  } catch { return null; }
 }
 
 async function loadAllVoices() {
-  await openDB();
   await Promise.all(STEPS.map(async (step) => {
-    const blob = await dbLoad(step.key);
-    if (blob) voiceData[step.key] = { blob };
+    const blob = await supaGetBlob(step.key);
+    if (blob && blob.size > 0) voiceData[step.key] = { blob };
   }));
 }
 
@@ -557,8 +558,8 @@ function buildSteps() {
 const STEPS = buildSteps();
 const TOTAL_STEPS = STEPS.length;
 
-// Load saved voices from IndexedDB on startup
-loadAllVoices();
+// Promise that resolves when all voices are loaded from DB
+const voicesReady = loadAllVoices();
 
 // ==================== PAGE NAV ====================
 function showPage(id) {
@@ -764,7 +765,9 @@ function doReset() {
 function goHome() { stopGame(); showPage('home'); }
 function goAdmin() {
   if (!currentUser || currentUser.role !== 'admin') return;
-  renderAdminPage(); showPage('admin');
+  showPage('admin');
+  document.getElementById('voices-grid').innerHTML = '<p style="color:var(--muted);padding:20px;text-align:center;">⏳ กำลังโหลด...</p>';
+  voicesReady.then(() => renderAdminPage());
 }
 
 // ==================== ADMIN VOICE ====================
@@ -810,14 +813,13 @@ async function toggleRecord(key) {
     const maxMs = step ? step.maxDuration : 10000;
     mediaRecorder = new MediaRecorder(stream);
     mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordingChunks.push(e.data); };
-    mediaRecorder.onstop = () => {
+    mediaRecorder.onstop = async () => {
       stream.getTracks().forEach(t => t.stop());
       const blob = new Blob(recordingChunks, { type: 'audio/webm' });
-      voiceData[key] = { blob, duration: Date.now() - recordingStart };
+      voiceData[key] = { blob };
       clearTimeout(recordingTimer);
-      dbSave(key, blob);
 
-      // Re-render the card so play button appears correctly
+      // Re-render card with uploading state
       const card = document.getElementById(`vc-${key}`);
       const step = STEPS.find(s => s.key === key);
       if (card && step) {
@@ -825,7 +827,24 @@ async function toggleRecord(key) {
           <div class="vc-label">${step.label}</div>
           <div class="vc-script">"${step.script.replace(/\n/g,' ')}"</div>
           <div class="vc-duration">ระยะเวลาสูงสุด: ${step.maxDuration/1000} วินาที</div>
-          <span class="vc-status custom">🎙️ Custom</span>
+          <span class="vc-status recording">☁️ กำลังอัปโหลด...</span>
+          <div class="vc-controls">
+            <button class="btn-record" disabled style="opacity:0.5;">⏺ อัดใหม่</button>
+            <button class="btn-play-vc" disabled>▶ ฟัง</button>
+          </div>`;
+      }
+
+      // Upload to Supabase
+      const ok = await supaUpload(key, blob);
+
+      // Re-render card with final state
+      const card2 = document.getElementById(`vc-${key}`);
+      if (card2 && step) {
+        card2.innerHTML = `
+          <div class="vc-label">${step.label}</div>
+          <div class="vc-script">"${step.script.replace(/\n/g,' ')}"</div>
+          <div class="vc-duration">ระยะเวลาสูงสุด: ${step.maxDuration/1000} วินาที</div>
+          <span class="vc-status ${ok ? 'custom' : 'default'}">${ok ? '🎙️ Custom ☁️' : '⚠️ Upload ล้มเหลว'}</span>
           <div class="vc-controls">
             <button class="btn-record" id="rec-btn-${key}" onclick="toggleRecord('${key}')">⏺ อัดใหม่</button>
             <button class="btn-play-vc" id="play-btn-${key}" onclick="playVoice('${key}')">▶ ฟัง</button>
