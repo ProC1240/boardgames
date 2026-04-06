@@ -780,10 +780,21 @@ async function toggleRecord(key) {
       const blob = new Blob(recordingChunks, { type: 'audio/webm' });
       voiceData[key] = { blob, duration: Date.now() - recordingStart };
       clearTimeout(recordingTimer);
-      btn.innerHTML = '⏺ อัดเสียง'; btn.classList.remove('recording');
-      document.querySelector(`#vc-${key} .vc-status`).className = 'vc-status custom';
-      document.querySelector(`#vc-${key} .vc-status`).textContent = '🎙️ Custom';
-      document.getElementById(`play-btn-${key}`).disabled = false;
+
+      // Re-render the card so play button appears correctly
+      const card = document.getElementById(`vc-${key}`);
+      const step = STEPS.find(s => s.key === key);
+      if (card && step) {
+        card.innerHTML = `
+          <div class="vc-label">${step.label}</div>
+          <div class="vc-script">"${step.script.replace(/\n/g,' ')}"</div>
+          <div class="vc-duration">ระยะเวลาสูงสุด: ${step.maxDuration/1000} วินาที</div>
+          <span class="vc-status custom">🎙️ Custom</span>
+          <div class="vc-controls">
+            <button class="btn-record" id="rec-btn-${key}" onclick="toggleRecord('${key}')">⏺ อัดใหม่</button>
+            <button class="btn-play-vc" id="play-btn-${key}" onclick="playVoice('${key}')">▶ ฟัง</button>
+          </div>`;
+      }
     };
     mediaRecorder.start();
     btn.innerHTML = '⏹ หยุดอัด'; btn.classList.add('recording');
