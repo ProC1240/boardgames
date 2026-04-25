@@ -477,29 +477,42 @@ const SUPA_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIs
 const SUPA_SERVICE = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9rdGJ0aWl2Y3Zvd2RuZ3htam16Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTQ1NTA5OCwiZXhwIjoyMDkxMDMxMDk4fQ.Ud1gU4ORiU1m8u4cDSaj5ldC562s6Z9hdB0GyvqTmNc';
 const BUCKET = 'voices';
 
-async function supaUpload(key, blob) {
-  const res = await fetch(`${SUPA_URL}/storage/v1/object/${BUCKET}/${key}.webm`, {
-    method: 'POST',
-    headers: {
-      'apikey': SUPA_SERVICE,
-      'Authorization': `Bearer ${SUPA_SERVICE}`,
-      'x-upsert': 'true',
-      'Content-Type': 'audio/webm'
-    },
-    body: blob
-  });
-  if (!res.ok) console.error('Upload failed:', await res.text());
-  return res.ok;
+async function supaUpload(key, blob, ext) {
+  const mime = ext === 'mp4' ? 'audio/mp4' : 'audio/webm';
+  // upload ทั้ง 2 format เพื่อรองรับทุก device
+  const paths = ext === 'mp4' ? [`${key}.mp4`, `${key}.webm`] : [`${key}.webm`, `${key}.mp4`];
+  let ok = false;
+  for (const path of paths.slice(0,1)) {
+    const res = await fetch(`${SUPA_URL}/storage/v1/object/${BUCKET}/${path}`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPA_SERVICE,
+        'Authorization': `Bearer ${SUPA_SERVICE}`,
+        'x-upsert': 'true',
+        'Content-Type': mime
+      },
+      body: blob
+    });
+    if (!res.ok) console.error('Upload failed:', await res.text());
+    else ok = true;
+  }
+  return ok;
 }
 
 async function supaGetBlob(key) {
-  try {
-    const res = await fetch(`${SUPA_URL}/storage/v1/object/public/${BUCKET}/${key}.webm`, {
-      headers: { 'apikey': SUPA_ANON }
-    });
-    if (!res.ok) return null;
-    return await res.blob();
-  } catch { return null; }
+  // ลอง mp4 ก่อน (iOS) แล้วค่อย webm (Android/Desktop)
+  for (const ext of ['mp4', 'webm']) {
+    try {
+      const res = await fetch(`${SUPA_URL}/storage/v1/object/public/${BUCKET}/${key}.${ext}`, {
+        headers: { 'apikey': SUPA_ANON }
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        if (blob.size > 0) return blob;
+      }
+    } catch {}
+  }
+  return null;
 }
 
 async function loadAllVoices() {
@@ -811,12 +824,19 @@ async function toggleRecord(key) {
     recordingKey = key; recordingChunks = []; recordingStart = Date.now();
     const step = STEPS.find(s => s.key === key);
     const maxMs = step ? step.maxDuration : 10000;
-    mediaRecorder = new MediaRecorder(stream);
+    // iOS Safari รองรับเฉพาะ mp4 — เลือก format อัตโนมัติ
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm'
+                   : MediaRecorder.isTypeSupported('audio/mp4')  ? 'audio/mp4'
+                   : '';
+    mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+    const actualMime = mediaRecorder.mimeType || 'audio/mp4';
+    const fileExt = actualMime.includes('mp4') ? 'mp4' : 'webm';
+
     mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordingChunks.push(e.data); };
     mediaRecorder.onstop = async () => {
       stream.getTracks().forEach(t => t.stop());
-      const blob = new Blob(recordingChunks, { type: 'audio/webm' });
-      voiceData[key] = { blob };
+      const blob = new Blob(recordingChunks, { type: actualMime });
+      voiceData[key] = { blob, ext: fileExt };
       clearTimeout(recordingTimer);
 
       // Re-render card with uploading state
@@ -835,7 +855,7 @@ async function toggleRecord(key) {
       }
 
       // Upload to Supabase
-      const ok = await supaUpload(key, blob);
+      const ok = await supaUpload(key, blob, fileExt);
 
       // Re-render card with final state
       const card2 = document.getElementById(`vc-${key}`);
