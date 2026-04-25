@@ -500,17 +500,17 @@ async function supaUpload(key, blob, ext) {
 }
 
 async function supaGetBlob(key) {
-  // ลอง mp4 ก่อน (iOS) แล้วค่อย webm (Android/Desktop)
   for (const ext of ['mp4', 'webm']) {
     try {
-      const res = await fetch(`${SUPA_URL}/storage/v1/object/public/${BUCKET}/${key}.${ext}`, {
-        headers: { 'apikey': SUPA_ANON }
-      });
+      const url = `${SUPA_URL}/storage/v1/object/public/${BUCKET}/${key}.${ext}`;
+      const res = await fetch(url, { headers: { 'apikey': SUPA_ANON } });
+      debugLog(`fetch ${key}.${ext} → ${res.status}`);
       if (res.ok) {
         const blob = await res.blob();
+        debugLog(`blob type=${blob.type} size=${blob.size}`);
         if (blob.size > 0) return blob;
       }
-    } catch {}
+    } catch(e) { debugLog(`error ${key}.${ext}: ${e.message}`); }
   }
   return null;
 }
@@ -518,8 +518,23 @@ async function supaGetBlob(key) {
 async function loadAllVoices() {
   await Promise.all(STEPS.map(async (step) => {
     const blob = await supaGetBlob(step.key);
-    if (blob && blob.size > 0) voiceData[step.key] = { blob };
+    if (blob && blob.size > 0) {
+      voiceData[step.key] = { blob };
+      debugLog(`✅ loaded ${step.key} (${blob.type} ${blob.size}b)`);
+    }
   }));
+}
+
+function debugLog(msg) {
+  let box = document.getElementById('debug-box');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'debug-box';
+    box.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:rgba(0,0,0,0.85);color:#0f0;font-size:11px;padding:8px;z-index:9999;max-height:200px;overflow-y:auto;font-family:monospace;';
+    document.body.appendChild(box);
+  }
+  box.innerHTML += msg + '<br>';
+  box.scrollTop = box.scrollHeight;
 }
 
 function logout() {
@@ -660,10 +675,15 @@ class GameEngine {
     return new Promise((res) => {
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
+      debugLog(`playing blob type=${blob.type} size=${blob.size}`);
       this._currentAudio = audio;
+      audio.oncanplay = () => debugLog('canplay ✅');
       audio.onended = () => { URL.revokeObjectURL(url); res(Date.now() - t0); };
-      audio.onerror = () => { URL.revokeObjectURL(url); res(Date.now() - t0); };
-      audio.play().catch(() => res(0));
+      audio.onerror = (e) => {
+        debugLog(`audio error: ${audio.error?.code} ${audio.error?.message}`);
+        URL.revokeObjectURL(url); res(Date.now() - t0);
+      };
+      audio.play().catch(e => { debugLog(`play() failed: ${e.message}`); res(0); });
     });
   }
 
