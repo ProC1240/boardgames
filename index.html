@@ -596,7 +596,22 @@ function showPage(id) {
 }
 
 // ==================== GAME ENGINE ====================
+let audioCtx = null;
+
+function unlockAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  // play silent buffer to unlock iOS
+  const buf = audioCtx.createBuffer(1, 1, 22050);
+  const src = audioCtx.createBufferSource();
+  src.buffer = buf;
+  src.connect(audioCtx.destination);
+  src.start(0);
+  debugLog('AudioContext unlocked: ' + audioCtx.state);
+}
+
 function startGame() {
+  unlockAudio(); // must be called from user gesture
   showPage('game');
   gameEngine = new GameEngine(STEPS);
   gameEngine.start();
@@ -672,19 +687,33 @@ class GameEngine {
 
   async _playAudioBlob(blob) {
     const t0 = Date.now();
-    return new Promise((res) => {
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      debugLog(`playing blob type=${blob.type} size=${blob.size}`);
-      this._currentAudio = audio;
-      audio.oncanplay = () => debugLog('canplay ✅');
-      audio.onended = () => { URL.revokeObjectURL(url); res(Date.now() - t0); };
-      audio.onerror = (e) => {
-        debugLog(`audio error: ${audio.error?.code} ${audio.error?.message}`);
-        URL.revokeObjectURL(url); res(Date.now() - t0);
-      };
-      audio.play().catch(e => { debugLog(`play() failed: ${e.message}`); res(0); });
-    });
+    debugLog(`playing blob type=${blob.type} size=${blob.size}`);
+    try {
+      if (!audioCtx) unlockAudio();
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
+      const arrayBuf = await blob.arrayBuffer();
+      const audioBuf = await audioCtx.decodeAudioData(arrayBuf);
+      return new Promise((res) => {
+        const src = audioCtx.createBufferSource();
+        src.buffer = audioBuf;
+        src.connect(audioCtx.destination);
+        this._currentSource = src;
+        src.onended = () => res(Date.now() - t0);
+        src.start(0);
+        debugLog('playing via AudioContext ✅');
+      });
+    } catch(e) {
+      debugLog(`AudioContext play failed: ${e.message}, falling back`);
+      // fallback to Audio element
+      return new Promise((res) => {
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        this._currentAudio = audio;
+        audio.onended = () => { URL.revokeObjectURL(url); res(Date.now() - t0); };
+        audio.onerror = () => { URL.revokeObjectURL(url); res(Date.now() - t0); };
+        audio.play().catch(() => res(0));
+      });
+    }
   }
 
   async _sleep(ms) {
@@ -713,12 +742,14 @@ class GameEngine {
   pause() {
     this.paused = true;
     if (this._currentAudio) this._currentAudio.pause();
+    if (audioCtx) audioCtx.suspend();
     if (window.speechSynthesis) window.speechSynthesis.pause();
   }
 
   resume() {
     this.paused = false;
     if (this._currentAudio) this._currentAudio.play().catch(()=>{});
+    if (audioCtx) audioCtx.resume();
     if (window.speechSynthesis) window.speechSynthesis.resume();
   }
 
@@ -727,6 +758,7 @@ class GameEngine {
     this._timers.forEach(clearTimeout);
     if (this._intervalRef) clearInterval(this._intervalRef);
     if (this._currentAudio) { this._currentAudio.pause(); this._currentAudio = null; }
+    if (this._currentSource) { try { this._currentSource.stop(); } catch(e){} this._currentSource = null; }
     if (window.speechSynthesis) window.speechSynthesis.cancel();
   }
 
